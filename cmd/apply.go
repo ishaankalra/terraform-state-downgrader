@@ -47,8 +47,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to pull state: %w", err)
 	}
 
-	// Step 3: Get resource-to-provider mapping from terraform providers and state
-	fmt.Println("  ✓ Running: terraform providers")
+	// Step 3: Get resource-to-provider mapping from state
 	resourceMapping, err := config.GetResourceProviderMappingFromState(configDir, stateData)
 	if err != nil {
 		return fmt.Errorf("failed to get resource-provider mapping: %w", err)
