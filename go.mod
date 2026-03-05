@@ -1,4 +1,4 @@
-module github.com/ishaankalra/terraform-state-downgrade
+module github.com/ishaankalra/terraform-state-downgrader
 
 go 1.25.4
 

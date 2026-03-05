@@ -33,14 +33,14 @@ jobs:
       - name: Build binaries
         run: |
           # Build for multiple platforms
-          GOOS=linux GOARCH=amd64 go build -o terraform-state-downgrade-linux-amd64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
-          GOOS=linux GOARCH=arm64 go build -o terraform-state-downgrade-linux-arm64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
-          GOOS=darwin GOARCH=amd64 go build -o terraform-state-downgrade-darwin-amd64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
-          GOOS=darwin GOARCH=arm64 go build -o terraform-state-downgrade-darwin-arm64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
-          GOOS=windows GOARCH=amd64 go build -o terraform-state-downgrade-windows-amd64.exe -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
+          GOOS=linux GOARCH=amd64 go build -o terraform-state-downgrader-linux-amd64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
+          GOOS=linux GOARCH=arm64 go build -o terraform-state-downgrader-linux-arm64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
+          GOOS=darwin GOARCH=amd64 go build -o terraform-state-downgrader-darwin-amd64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
+          GOOS=darwin GOARCH=arm64 go build -o terraform-state-downgrader-darwin-arm64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
+          GOOS=windows GOARCH=amd64 go build -o terraform-state-downgrader-windows-amd64.exe -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
 
           # Create checksums
-          sha256sum terraform-state-downgrade-* > checksums.txt
+          sha256sum terraform-state-downgrader-* > checksums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -49,9 +49,9 @@ jobs:
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: ${{ steps.tag_version.outputs.changelog }}
           files: |
-            terraform-state-downgrade-linux-amd64
-            terraform-state-downgrade-linux-arm64
-            terraform-state-downgrade-darwin-amd64
-            terraform-state-downgrade-darwin-arm64
-            terraform-state-downgrade-windows-amd64.exe
+            terraform-state-downgrader-linux-amd64
+            terraform-state-downgrader-linux-arm64
+            terraform-state-downgrader-darwin-amd64
+            terraform-state-downgrader-darwin-arm64
+            terraform-state-downgrader-windows-amd64.exe
             checksums.txt

@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 )
 
 // Provider represents a provider with its module context

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ishaankalra/terraform-state-downgrade/cmd"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
+	"github.com/ishaankalra/terraform-state-downgrader/cmd"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 )
 
 // verifySchemaVersions strictly checks that all resources have the expected schema version

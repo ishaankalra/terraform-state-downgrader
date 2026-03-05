@@ -6,10 +6,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/ishaankalra/terraform-state-downgrade/internal/analysis"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/config"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/output"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/analysis"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/config"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/output"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ func init() {
 }
 
 func runPlan(cmd *cobra.Command, args []string) error {
-	fmt.Println("terraform-state-downgrade plan")
+	fmt.Println("terraform-state-downgrader plan")
 	fmt.Println()
 
 	// Step 1: Parse lock file

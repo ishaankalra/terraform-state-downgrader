@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/ishaankalra/terraform-state-downgrade/internal/analysis"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/config"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/analysis"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/config"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 )
 
 // DisplayPlan displays the plan output in a human-readable format
@@ -111,6 +111,6 @@ func DisplayPlan(lockFile *config.LockFile, stateData *state.State, mismatches [
 
 	if len(mismatches) > 0 {
 		fmt.Println("\nTo apply these changes:")
-		fmt.Println("  terraform-state-downgrade apply")
+		fmt.Println("  terraform-state-downgrader apply")
 	}
 }

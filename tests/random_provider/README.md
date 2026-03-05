@@ -26,12 +26,12 @@ This directory contains a Terraform configuration using the `random` provider fo
 
 ## Testing the Tool
 
-After setup, you can test the terraform-state-downgrade tool:
+After setup, you can test the terraform-state-downgrader tool:
 
 ```bash
 # From the root of the repository
-./terraform-state-downgrade plan --config-dir ./tests/random_provider
+./terraform-state-downgrader plan --config-dir ./tests/random_provider
 
 # Apply the downgrade
-./terraform-state-downgrade apply --config-dir ./tests/random_provider
+./terraform-state-downgrader apply --config-dir ./tests/random_provider
 ```

@@ -10,8 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ishaankalra/terraform-state-downgrade/internal/analysis"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/analysis"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 )
 
 // ReimportResources re-imports resources from cloud provider to update schema versions

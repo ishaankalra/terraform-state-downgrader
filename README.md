@@ -1,4 +1,4 @@
-# terraform-state-downgrade
+# terraform-state-downgrader
 
 A CLI tool that helps you downgrade Terraform state schema versions when you switch to an older provider version.
 
@@ -28,15 +28,15 @@ This tool solves that problem by automatically re-importing resources from your 
 ### From Source
 
 ```bash
-git clone https://github.com/ishaankalra/terraform-state-downgrade.git
-cd terraform-state-downgrade
-go build -o terraform-state-downgrade .
+git clone https://github.com/ishaankalra/terraform-state-downgrader.git
+cd terraform-state-downgrader
+go build -o terraform-state-downgrader .
 ```
 
 ### Using Go Install
 
 ```bash
-go install github.com/ishaankalra/terraform-state-downgrade@latest
+go install github.com/ishaankalra/terraform-state-downgrader@latest
 ```
 
 ## Usage
@@ -51,22 +51,22 @@ go install github.com/ishaankalra/terraform-state-downgrade@latest
 
 ```bash
 # Show what would change (dry run)
-terraform-state-downgrade plan
+terraform-state-downgrader plan
 
 # Apply the changes
-terraform-state-downgrade apply
+terraform-state-downgrader apply
 ```
 
 ### With Custom Paths
 
 ```bash
 # Specify custom config directory and state file
-terraform-state-downgrade plan \
+terraform-state-downgrader plan \
   --config-dir /path/to/terraform \
   --state-file /path/to/terraform.tfstate
 
 # Apply with custom backup location
-terraform-state-downgrade apply \
+terraform-state-downgrader apply \
   --backup /path/to/backup.tfstate
 ```
 
@@ -113,7 +113,7 @@ terraform init -upgrade
 
 ```bash
 # See what would change
-terraform-state-downgrade plan
+terraform-state-downgrader plan
 
 # Output:
 # Analyzing configuration...
@@ -140,7 +140,7 @@ terraform-state-downgrade plan
 #   ...
 
 # Apply the changes
-terraform-state-downgrade apply
+terraform-state-downgrader apply
 
 # Output:
 # Creating backup: terraform.tfstate.backup-1709400000
@@ -207,7 +207,7 @@ terraform import aws_instance.web i-1234567890
 
 ```bash
 # ✅ Automatic, safe, and fast
-terraform-state-downgrade apply
+terraform-state-downgrader apply
 ```
 
 ## Troubleshooting
@@ -237,10 +237,10 @@ Error: Resource aws_instance.deleted with ID i-xyz789 was not found
 ### Building from Source
 
 ```bash
-git clone https://github.com/ishaankalra/terraform-state-downgrade.git
-cd terraform-state-downgrade
+git clone https://github.com/ishaankalra/terraform-state-downgrader.git
+cd terraform-state-downgrader
 go mod download
-go build -o terraform-state-downgrade .
+go build -o terraform-state-downgrader .
 ```
 
 ### Running Tests
@@ -252,7 +252,7 @@ go test ./...
 ### Project Structure
 
 ```
-terraform-state-downgrade/
+terraform-state-downgrader/
 ├── main.go                      # CLI entry point
 ├── cmd/
 │   ├── root.go                 # Root command

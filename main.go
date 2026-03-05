@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ishaankalra/terraform-state-downgrade/cmd"
+	"github.com/ishaankalra/terraform-state-downgrader/cmd"
 )
 
 // Version is set via ldflags during build

@@ -16,9 +16,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "terraform-state-downgrade",
+	Use:   "terraform-state-downgrader",
 	Short: "Downgrade Terraform state schema versions",
-	Long: `terraform-state-downgrade is a tool that helps you downgrade Terraform state
+	Long: `terraform-state-downgrader is a tool that helps you downgrade Terraform state
 when you've switched to an older provider version.
 
 It works by:
@@ -28,15 +28,15 @@ It works by:
 4. State is automatically pushed back to the backend by Terraform
 
 Example:
-  terraform-state-downgrade plan
-  terraform-state-downgrade apply`,
+  terraform-state-downgrader plan
+  terraform-state-downgrader apply`,
 }
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("terraform-state-downgrade %s\n", version)
+		fmt.Printf("terraform-state-downgrader %s\n", version)
 	},
 }
 

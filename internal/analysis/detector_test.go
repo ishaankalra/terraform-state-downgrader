@@ -6,7 +6,7 @@ package analysis
 import (
 	"testing"
 
-	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 )
 
 func TestDetectMismatches_DowngradeNeeded(t *testing.T) {

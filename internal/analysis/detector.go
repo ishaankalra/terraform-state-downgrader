@@ -6,7 +6,7 @@ package analysis
 import (
 	"fmt"
 
-	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 )
 
 // DetectMismatches cross-references state, configuration, and schema versions

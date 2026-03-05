@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ishaankalra/terraform-state-downgrade/internal/analysis"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/config"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/provider"
-	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/analysis"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/config"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/provider"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +29,7 @@ func init() {
 
 func runApply(cmd *cobra.Command, args []string) error {
 	startTime := time.Now()
-	fmt.Println("terraform-state-downgrade apply")
+	fmt.Println("terraform-state-downgrader apply")
 	fmt.Println()
 
 	// Step 1: Parse lock file
