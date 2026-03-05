@@ -11,8 +11,8 @@ import (
 	"testing"
 )
 
-// TestIntegration_RealProviderDowngrade tests the complete downgrade flow
-func TestIntegration_RealProviderDowngrade(t *testing.T) {
+// TestIntegration_Plan tests the plan command detects schema mismatches
+func TestIntegration_Plan(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -170,3 +170,177 @@ func TestIntegration_RealProviderDowngrade(t *testing.T) {
 	})
 }
 
+// TestIntegration_Apply tests the apply command fixes schema mismatches
+func TestIntegration_Apply(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	projectRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatalf("Failed to get project root: %v", err)
+	}
+
+	binaryPath := filepath.Join(projectRoot, "terraform-state-downgrade")
+	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
+		t.Skip("Binary not found. Run 'go build' first")
+	}
+
+	testDir := filepath.Join(projectRoot, "tests", "random_provider")
+	versionsFile := filepath.Join(testDir, "versions.tf")
+
+	// Cleanup function
+	cleanup := func() {
+		os.Remove(versionsFile)
+		os.RemoveAll(filepath.Join(testDir, ".terraform"))
+		os.Remove(filepath.Join(testDir, ".terraform.lock.hcl"))
+		os.Remove(filepath.Join(testDir, "terraform.tfstate"))
+		os.Remove(filepath.Join(testDir, "terraform.tfstate.backup"))
+		// Clean up any backup files created by the tool
+		backupFiles, _ := filepath.Glob(filepath.Join(testDir, "terraform.tfstate.backup-*"))
+		for _, f := range backupFiles {
+			os.Remove(f)
+		}
+	}
+
+	// Clean up before starting
+	cleanup()
+	defer cleanup()
+
+	// Step 1: Create versions.tf with v3.5.1
+	t.Run("setup_v3.5.1", func(t *testing.T) {
+		versionsContent := `terraform {
+  required_providers {
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5.1"
+    }
+  }
+}
+`
+		err := os.WriteFile(versionsFile, []byte(versionsContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create versions.tf: %v", err)
+		}
+
+		// Run terraform init
+		cmd := exec.Command("terraform", "init")
+		cmd.Dir = testDir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("terraform init failed: %v\nOutput: %s", err, output)
+		}
+
+		// Run terraform apply
+		cmd = exec.Command("terraform", "apply", "-auto-approve")
+		cmd.Dir = testDir
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("terraform apply failed: %v\nOutput: %s", err, output)
+		}
+
+		t.Logf("Successfully created state with v3.5.1")
+	})
+
+	// Step 2: Verify state has resources with schema_version > 0
+	t.Run("verify_v3.5.1_state", func(t *testing.T) {
+		stateFile := filepath.Join(testDir, "terraform.tfstate")
+		data, err := os.ReadFile(stateFile)
+		if err != nil {
+			t.Fatalf("Failed to read state: %v", err)
+		}
+
+		stateContent := string(data)
+		if !strings.Contains(stateContent, `"schema_version": 2`) {
+			t.Errorf("Expected random_string to have schema_version 2")
+		}
+		if !strings.Contains(stateContent, `"schema_version": 3`) {
+			t.Errorf("Expected random_password to have schema_version 3")
+		}
+
+		t.Logf("State contains resources with schema_version 2 and 3")
+	})
+
+	// Step 3: Downgrade to v3.1.0 (older version with lower schema versions)
+	t.Run("downgrade_to_v3.1.0", func(t *testing.T) {
+		versionsContent := `terraform {
+  required_providers {
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.1.0"
+    }
+  }
+}
+`
+		err := os.WriteFile(versionsFile, []byte(versionsContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to update versions.tf: %v", err)
+		}
+
+		// Run terraform init -upgrade
+		cmd := exec.Command("terraform", "init", "-upgrade")
+		cmd.Dir = testDir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("terraform init -upgrade failed: %v\nOutput: %s", err, output)
+		}
+
+		t.Logf("Successfully downgraded to v3.1.0")
+	})
+
+	// Step 4: Run apply command to fix the state
+	t.Run("apply_fixes_state", func(t *testing.T) {
+		stateFilePath := filepath.Join(testDir, "terraform.tfstate")
+		cmd := exec.Command(binaryPath, "apply",
+			"--config-dir", testDir,
+			"--state-file", stateFilePath)
+		output, err := cmd.CombinedOutput()
+
+		outputStr := string(output)
+		t.Logf("Tool output:\n%s", outputStr)
+
+		if err != nil {
+			t.Errorf("Apply command failed: %v\nOutput: %s", err, outputStr)
+			return
+		}
+
+		t.Logf("✓ Apply command completed successfully")
+	})
+
+	// Step 6: Verify backup file was created
+	t.Run("backup_file_created", func(t *testing.T) {
+		backupFiles, err := filepath.Glob(filepath.Join(testDir, "terraform.tfstate.backup-*"))
+		if err != nil {
+			t.Fatalf("Failed to search for backup files: %v", err)
+		}
+
+		if len(backupFiles) == 0 {
+			t.Errorf("Expected backup file to be created, but none found")
+		} else {
+			t.Logf("✓ Backup file created: %s", filepath.Base(backupFiles[0]))
+		}
+	})
+
+	// Step 5: Verify state schema versions are corrected
+	t.Run("verify_schema_versions_corrected", func(t *testing.T) {
+		stateFile := filepath.Join(testDir, "terraform.tfstate")
+		data, err := os.ReadFile(stateFile)
+		if err != nil {
+			t.Fatalf("Failed to read state: %v", err)
+		}
+
+		stateContent := string(data)
+
+		// After downgrade, random provider v3.1.0 should have schema_version 0 for both resources
+		if !strings.Contains(stateContent, `"schema_version": 0`) {
+			t.Errorf("Expected resources to have schema_version 0 after downgrade")
+		}
+
+		// Should NOT contain old schema versions
+		if strings.Contains(stateContent, `"schema_version": 2`) || strings.Contains(stateContent, `"schema_version": 3`) {
+			t.Errorf("State still contains old schema versions (2 or 3)")
+		}
+
+		t.Logf("✓ State schema versions corrected to v0")
+	})
+}
