@@ -4,12 +4,15 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
 var (
 	configDir  string
 	backupFile string
+	version    string
 )
 
 var rootCmd = &cobra.Command{
@@ -29,9 +32,23 @@ Example:
   terraform-state-downgrade apply`,
 }
 
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print the version number",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("terraform-state-downgrade %s\n", version)
+	},
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&configDir, "config-dir", ".", "Terraform configuration directory")
 	rootCmd.PersistentFlags().StringVar(&backupFile, "backup", "", "Backup file path (default: auto-generated)")
+	rootCmd.AddCommand(versionCmd)
+}
+
+// SetVersion sets the version string
+func SetVersion(v string) {
+	version = v
 }
 
 // Execute runs the root command

@@ -10,7 +10,11 @@ import (
 	"github.com/ishaankalra/terraform-state-downgrade/cmd"
 )
 
+// Version is set via ldflags during build
+var Version = "dev"
+
 func main() {
+	cmd.SetVersion(Version)
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
