@@ -16,11 +16,12 @@ This tool solves that problem by automatically re-importing resources from your 
 
 ## How It Works
 
-1. **Analyzes** your configuration using `terraform show -json` and `terraform providers schema -json`
-2. **Detects** resources in your state that have schema version mismatches
-3. **Re-imports** those resources from the cloud provider (AWS, Azure, GCP, etc.)
-4. **Updates** the state file with the correct schema versions
-5. **Preserves** timeout configurations and metadata
+1. **Analyzes** your configuration using `terraform providers` (parses provider tree) and reads your state file directly
+2. **Gets schema versions** using `terraform providers schema -json`
+3. **Detects** resources in your state that have schema version mismatches
+4. **Re-imports** those resources from the cloud provider (AWS, Azure, GCP, etc.)
+5. **Updates** the state file with the correct schema versions
+6. **Preserves** timeout configurations and metadata
 
 ## Installation
 
@@ -117,9 +118,9 @@ terraform-state-downgrade plan
 # Output:
 # Analyzing configuration...
 #   ✓ Parsed .terraform.lock.hcl (1 providers)
-#   ✓ Running: terraform show -json
-#   ✓ Running: terraform providers schema -json
 #   ✓ Reading: terraform.tfstate
+#   ✓ Running: terraform providers
+#   ✓ Running: terraform providers schema -json
 #
 # Providers from lock file:
 #   • registry.terraform.io/hashicorp/aws v3.74.0
@@ -162,10 +163,10 @@ terraform plan
 
 The tool combines information from multiple sources:
 
-1. **`.terraform.lock.hcl`** - Provider versions
-2. **`terraform show -json`** - Resource-to-provider mapping from configuration
-3. **`terraform providers schema -json`** - Target schema versions
-4. **`terraform.tfstate`** - Current schema versions
+1. **`.terraform.lock.hcl`** - Provider versions currently installed
+2. **`terraform providers`** - Providers required by configuration (parses tree output)
+3. **`terraform.tfstate`** - Current schema versions and resource-to-provider mappings
+4. **`terraform providers schema -json`** - Target schema versions for each resource type
 
 ## Features
 
@@ -218,14 +219,6 @@ Error: lock file not found at .terraform.lock.hcl. Run 'terraform init' first
 ```
 
 **Solution**: Run `terraform init` in your Terraform directory.
-
-### "terraform plan failed"
-
-```bash
-Error: terraform plan failed
-```
-
-**Solution**: Ensure your Terraform configuration is valid. Run `terraform validate` first.
 
 ### "Resource not found during re-import"
 
