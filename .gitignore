@@ -1,0 +1,57 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+terraform-state-downgrade
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.txt
+coverage.html
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# IDE and editor files
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Terraform files
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Test fixtures - exclude generated terraform files
+tests/random_provider/.terraform/
+tests/random_provider/.terraform.lock.hcl
+tests/random_provider/terraform.tfstate*
+tests/random_provider/versions.tf
+
+# Backup files
+*.backup
+*.backup-*
+
+# Temporary files
+tmp/
+*.tmp
