@@ -37,11 +37,11 @@ func runPlan(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("  ✓ Parsed .terraform.lock.hcl (%d providers)\n", len(lockFile.Providers))
 
-	// Step 2: Read state file
-	fmt.Printf("  ✓ Reading: %s\n", stateFile)
-	stateData, err := state.ReadState(stateFile)
+	// Step 2: Pull state from backend
+	fmt.Println("  ✓ Running: terraform state pull")
+	stateData, _, err := state.PullState(configDir)
 	if err != nil {
-		return fmt.Errorf("failed to read state: %w", err)
+		return fmt.Errorf("failed to pull state: %w", err)
 	}
 
 	// Step 3: Get resource-to-provider mapping from terraform providers and state

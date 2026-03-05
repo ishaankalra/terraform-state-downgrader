@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/ishaankalra/terraform-state-downgrade/internal/analysis"
@@ -39,11 +40,11 @@ func runApply(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("  ✓ Parsed .terraform.lock.hcl (%d providers)\n", len(lockFile.Providers))
 
-	// Step 2: Read state file
-	fmt.Printf("  ✓ Reading: %s\n", stateFile)
-	stateData, err := state.ReadState(stateFile)
+	// Step 2: Pull state from backend
+	fmt.Println("  ✓ Running: terraform state pull")
+	stateData, stateBytes, err := state.PullState(configDir)
 	if err != nil {
-		return fmt.Errorf("failed to read state: %w", err)
+		return fmt.Errorf("failed to pull state: %w", err)
 	}
 
 	// Step 3: Get resource-to-provider mapping from terraform providers and state
@@ -71,13 +72,13 @@ func runApply(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Step 6: Create backup
+	// Step 6: Create backup from pulled state
 	backupPath := backupFile
 	if backupPath == "" {
-		backupPath = fmt.Sprintf("%s.backup-%d", stateFile, time.Now().Unix())
+		backupPath = filepath.Join(configDir, fmt.Sprintf("terraform.tfstate.backup-%d", time.Now().Unix()))
 	}
 	fmt.Printf("\nCreating backup: %s\n", backupPath)
-	if err := state.CreateBackup(stateFile, backupPath); err != nil {
+	if err := state.CreateBackupFromBytes(stateBytes, backupPath); err != nil {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
 

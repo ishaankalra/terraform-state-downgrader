@@ -42,23 +42,12 @@ func WriteState(path string, state *State) error {
 	return nil
 }
 
-// CreateBackup creates a backup copy of the state file
-func CreateBackup(sourcePath, backupPath string) error {
-	// Make paths absolute
-	absSource, err := filepath.Abs(sourcePath)
-	if err != nil {
-		return fmt.Errorf("failed to get absolute source path: %w", err)
-	}
-
+// CreateBackupFromBytes creates a backup file from raw state bytes
+func CreateBackupFromBytes(data []byte, backupPath string) error {
+	// Make path absolute
 	absBackup, err := filepath.Abs(backupPath)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute backup path: %w", err)
-	}
-
-	// Read source
-	data, err := os.ReadFile(absSource)
-	if err != nil {
-		return fmt.Errorf("failed to read source file: %w", err)
 	}
 
 	// Write backup

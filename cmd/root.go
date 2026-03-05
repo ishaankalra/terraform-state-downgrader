@@ -8,8 +8,7 @@ import (
 )
 
 var (
-	configDir string
-	stateFile string
+	configDir  string
 	backupFile string
 )
 
@@ -20,9 +19,10 @@ var rootCmd = &cobra.Command{
 when you've switched to an older provider version.
 
 It works by:
-1. Analyzing your configuration to detect schema version mismatches
-2. Re-importing resources from the cloud provider
-3. Updating the state file with the correct schema versions
+1. Pulling state from your configured backend (supports all backends)
+2. Analyzing your configuration to detect schema version mismatches
+3. Re-importing resources from the cloud provider
+4. State is automatically pushed back to the backend by Terraform
 
 Example:
   terraform-state-downgrade plan
@@ -31,7 +31,6 @@ Example:
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&configDir, "config-dir", ".", "Terraform configuration directory")
-	rootCmd.PersistentFlags().StringVar(&stateFile, "state-file", "terraform.tfstate", "Path to state file")
 	rootCmd.PersistentFlags().StringVar(&backupFile, "backup", "", "Backup file path (default: auto-generated)")
 }
 

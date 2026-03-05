@@ -173,8 +173,6 @@ func TestIntegration_Plan(t *testing.T) {
 
 	// Step 5: Test the downgrade tool - should now work even with schema mismatch!
 	t.Run("downgrade_tool_detects_mismatches", func(t *testing.T) {
-		stateFilePath := filepath.Join(testDir, "terraform.tfstate")
-
 		// Capture stdout
 		oldStdout := os.Stdout
 		r, w, _ := os.Pipe()
@@ -184,7 +182,6 @@ func TestIntegration_Plan(t *testing.T) {
 		err := cmd.ExecuteWithArgs([]string{
 			"plan",
 			"--config-dir", testDir,
-			"--state-file", stateFilePath,
 		})
 
 		// Restore stdout
@@ -332,8 +329,6 @@ func TestIntegration_Apply(t *testing.T) {
 
 	// Step 4: Run apply command to fix the state
 	t.Run("apply_fixes_state", func(t *testing.T) {
-		stateFilePath := filepath.Join(testDir, "terraform.tfstate")
-
 		// Capture stdout
 		oldStdout := os.Stdout
 		r, w, _ := os.Pipe()
@@ -343,7 +338,6 @@ func TestIntegration_Apply(t *testing.T) {
 		err := cmd.ExecuteWithArgs([]string{
 			"apply",
 			"--config-dir", testDir,
-			"--state-file", stateFilePath,
 		})
 
 		// Restore stdout
@@ -364,15 +358,16 @@ func TestIntegration_Apply(t *testing.T) {
 		t.Logf("✓ Apply command completed successfully")
 	})
 
-	// Step 5: Verify backup file was created
+	// Step 5: Verify backup file was created (in config directory)
 	t.Run("backup_file_created", func(t *testing.T) {
+		// Backup file is created in the config directory
 		backupFiles, err := filepath.Glob(filepath.Join(testDir, "terraform.tfstate.backup-*"))
 		if err != nil {
 			t.Fatalf("Failed to search for backup files: %v", err)
 		}
 
 		if len(backupFiles) == 0 {
-			t.Errorf("Expected backup file to be created, but none found")
+			t.Errorf("Expected backup file to be created in %s, but none found", testDir)
 		} else {
 			t.Logf("✓ Backup file created: %s", filepath.Base(backupFiles[0]))
 		}
