@@ -87,13 +87,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to re-import resources: %w", err)
 	}
 
-	// Step 8: Write updated state
-	fmt.Printf("\nWriting state: %s\n", stateFile)
-	if err := state.WriteState(stateFile, stateData); err != nil {
-		return fmt.Errorf("failed to write state: %w", err)
-	}
-
-	// Step 9: Summary
+	// Step 8: Summary
 	elapsed := time.Since(startTime)
 	fmt.Printf("\n✓ Success! %d resources downgraded\n", len(mismatches))
 	fmt.Printf("  Backup: %s\n", backupPath)
