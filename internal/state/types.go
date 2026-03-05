@@ -22,6 +22,7 @@ type Output struct {
 
 // Resource represents a resource in the state
 type Resource struct {
+	Module       string             `json:"module,omitempty"`
 	Mode         string             `json:"mode"`
 	Type         string             `json:"type"`
 	Name         string             `json:"name"`

@@ -13,6 +13,7 @@ import (
 
 // GetResourceProviderMappingFromState builds resource-to-provider mapping
 // by extracting provider information directly from state
+// Resource addresses include module path (e.g., "module.database.aws_s3_bucket.example")
 func GetResourceProviderMappingFromState(configDir string, stateData *state.State) (map[string]string, error) {
 	// Build resource → provider mapping from state
 	mapping := make(map[string]string)
@@ -23,8 +24,15 @@ func GetResourceProviderMappingFromState(configDir string, stateData *state.Stat
 			continue
 		}
 
-		// Build resource address
-		resourceAddr := fmt.Sprintf("%s.%s", resource.Type, resource.Name)
+		// Build resource address including module path
+		var resourceAddr string
+		if resource.Module != "" {
+			// Module resource: "module.database.aws_s3_bucket.example"
+			resourceAddr = fmt.Sprintf("%s.%s.%s", resource.Module, resource.Type, resource.Name)
+		} else {
+			// Root resource: "aws_s3_bucket.example"
+			resourceAddr = fmt.Sprintf("%s.%s", resource.Type, resource.Name)
+		}
 
 		// Extract provider address from state's provider field
 		// Format: provider["registry.terraform.io/hashicorp/random"]

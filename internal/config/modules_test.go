@@ -5,6 +5,7 @@ package config
 
 import (
 	"encoding/json"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -167,5 +168,76 @@ func TestMapProvidersToFQDN(t *testing.T) {
 		if actualFQDN != expectedFQDN {
 			t.Errorf("Provider %s: expected FQDN %s, got %s", name, expectedFQDN, actualFQDN)
 		}
+	}
+}
+
+func TestBuildModuleProviderMapping(t *testing.T) {
+	configDir := filepath.Join("..", "..", "tests", "sample_with_modules")
+
+	// Run terraform init to ensure .terraform directory exists
+	initCmd := exec.Command("terraform", "init")
+	initCmd.Dir = configDir
+	if err := initCmd.Run(); err != nil {
+		t.Fatalf("Failed to run terraform init: %v", err)
+	}
+
+	// Build module-aware provider mapping
+	mapping, err := BuildModuleProviderMapping(configDir)
+	if err != nil {
+		t.Fatalf("Failed to build module provider mapping: %v", err)
+	}
+
+	if len(mapping) == 0 {
+		t.Fatal("Expected to build module provider mapping, got 0 modules")
+	}
+
+	t.Logf("Built provider mapping for %d modules", len(mapping))
+
+	// Pretty print the mapping
+	jsonData, _ := json.MarshalIndent(mapping, "", "  ")
+	t.Logf("Module → Provider → FQDN mapping:\n%s", string(jsonData))
+
+	// Verify root module has providers
+	if rootProviders, exists := mapping[""]; exists {
+		t.Logf("Root module has %d providers", len(rootProviders))
+		if len(rootProviders) < 2 {
+			t.Error("Expected root module to have at least 2 providers (random, null)")
+		}
+	} else {
+		t.Error("Expected root module in mapping")
+	}
+
+	// Verify database module has providers
+	if dbProviders, exists := mapping["database"]; exists {
+		t.Logf("Database module has %d providers", len(dbProviders))
+
+		// Check that database module has 'local' provider
+		if localFQDN, exists := dbProviders["local"]; exists {
+			expectedFQDN := "registry.terraform.io/hashicorp/local"
+			if localFQDN != expectedFQDN {
+				t.Errorf("Database module 'local' provider: expected %s, got %s", expectedFQDN, localFQDN)
+			}
+		} else {
+			t.Error("Expected database module to have 'local' provider")
+		}
+	} else {
+		t.Error("Expected database module in mapping")
+	}
+
+	// Verify network module has providers
+	if netProviders, exists := mapping["network"]; exists {
+		t.Logf("Network module has %d providers", len(netProviders))
+
+		// Check that network module has 'time' provider
+		if timeFQDN, exists := netProviders["time"]; exists {
+			expectedFQDN := "registry.terraform.io/hashicorp/time"
+			if timeFQDN != expectedFQDN {
+				t.Errorf("Network module 'time' provider: expected %s, got %s", expectedFQDN, timeFQDN)
+			}
+		} else {
+			t.Error("Expected network module to have 'time' provider")
+		}
+	} else {
+		t.Error("Expected network module in mapping")
 	}
 }

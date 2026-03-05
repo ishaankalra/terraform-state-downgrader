@@ -25,8 +25,15 @@ func DetectMismatches(
 			continue
 		}
 
-		// Build resource address
-		resourceAddr := fmt.Sprintf("%s.%s", resource.Type, resource.Name)
+		// Build resource address including module path
+		var resourceAddr string
+		if resource.Module != "" {
+			// Module resource: "module.database.aws_s3_bucket.example"
+			resourceAddr = fmt.Sprintf("%s.%s.%s", resource.Module, resource.Type, resource.Name)
+		} else {
+			// Root resource: "aws_s3_bucket.example"
+			resourceAddr = fmt.Sprintf("%s.%s", resource.Type, resource.Name)
+		}
 
 		// Get provider from configuration mapping
 		providerAddr, ok := resourceMapping[resourceAddr]

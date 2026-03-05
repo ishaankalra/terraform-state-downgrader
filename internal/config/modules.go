@@ -222,3 +222,57 @@ func MapProvidersToFQDN(providers []RequiredProvider, lockFile *LockFile) map[st
 
 	return result
 }
+
+// BuildModuleProviderMapping builds a mapping of (module, provider_name) → FQDN
+// This handles cases where different modules use different versions of the same provider
+func BuildModuleProviderMapping(configDir string) (map[string]map[string]string, error) {
+	// Get all required providers from all modules
+	providers, err := GetAllRequiredProviders(configDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get required providers: %w", err)
+	}
+
+	// Parse lock file to resolve sources to FQDNs
+	lockFile, err := ParseLockFile(configDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse lock file: %w", err)
+	}
+
+	// Build a map of source → FQDN from lock file
+	sourceFQDNMap := make(map[string]string)
+	for fqdn := range lockFile.Providers {
+		// Extract source from FQDN
+		// "registry.terraform.io/hashicorp/aws3" → "hashicorp/aws3"
+		parts := strings.Split(fqdn, "/")
+		if len(parts) >= 3 {
+			source := strings.Join(parts[len(parts)-2:], "/")
+			sourceFQDNMap[source] = fqdn
+		}
+	}
+
+	// Build result: module → (provider_name → FQDN)
+	result := make(map[string]map[string]string)
+
+	for _, p := range providers {
+		if p.Source == "" {
+			continue
+		}
+
+		// Get FQDN for this provider source
+		fqdn, exists := sourceFQDNMap[p.Source]
+		if !exists {
+			continue
+		}
+
+		// Initialize map for this module if needed
+		if result[p.Module] == nil {
+			result[p.Module] = make(map[string]string)
+		}
+
+		// Map: module → provider_name → FQDN
+		// e.g., "database" → "aws" → "registry.terraform.io/hashicorp/aws3"
+		result[p.Module][p.Name] = fqdn
+	}
+
+	return result, nil
+}
