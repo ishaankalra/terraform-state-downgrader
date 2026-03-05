@@ -39,3 +39,10 @@ func init() {
 func Execute() error {
 	return rootCmd.Execute()
 }
+
+// ExecuteWithArgs runs the root command with specified arguments
+// This is useful for testing
+func ExecuteWithArgs(args []string) error {
+	rootCmd.SetArgs(args)
+	return rootCmd.Execute()
+}

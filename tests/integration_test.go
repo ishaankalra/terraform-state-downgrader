@@ -4,12 +4,49 @@
 package tests
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ishaankalra/terraform-state-downgrade/cmd"
+	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
 )
+
+// verifySchemaVersions strictly checks that all resources have the expected schema version
+func verifySchemaVersions(t *testing.T, stateFile string, expectedVersion int) {
+	data, err := os.ReadFile(stateFile)
+	if err != nil {
+		t.Fatalf("Failed to read state file: %v", err)
+	}
+
+	var stateData state.State
+	if err := json.Unmarshal(data, &stateData); err != nil {
+		t.Fatalf("Failed to parse state JSON: %v", err)
+	}
+
+	if len(stateData.Resources) == 0 {
+		t.Fatalf("No resources found in state")
+	}
+
+	for _, resource := range stateData.Resources {
+		// Skip data sources
+		if resource.Mode != "managed" {
+			continue
+		}
+
+		for i, instance := range resource.Instances {
+			if instance.SchemaVersion != expectedVersion {
+				t.Errorf("Resource %s.%s[%d] has schema_version %d, expected %d",
+					resource.Type, resource.Name, i, instance.SchemaVersion, expectedVersion)
+			}
+		}
+	}
+}
 
 // TestIntegration_Plan tests the plan command detects schema mismatches
 func TestIntegration_Plan(t *testing.T) {
@@ -20,11 +57,6 @@ func TestIntegration_Plan(t *testing.T) {
 	projectRoot, err := filepath.Abs("..")
 	if err != nil {
 		t.Fatalf("Failed to get project root: %v", err)
-	}
-
-	binaryPath := filepath.Join(projectRoot, "terraform-state-downgrade")
-	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
-		t.Skip("Binary not found. Run 'go build' first")
 	}
 
 	testDir := filepath.Join(projectRoot, "tests", "random_provider")
@@ -142,12 +174,27 @@ func TestIntegration_Plan(t *testing.T) {
 	// Step 5: Test the downgrade tool - should now work even with schema mismatch!
 	t.Run("downgrade_tool_detects_mismatches", func(t *testing.T) {
 		stateFilePath := filepath.Join(testDir, "terraform.tfstate")
-		cmd := exec.Command(binaryPath, "plan",
-			"--config-dir", testDir,
-			"--state-file", stateFilePath)
-		output, err := cmd.CombinedOutput()
 
-		outputStr := string(output)
+		// Capture stdout
+		oldStdout := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		// Run plan command
+		err := cmd.ExecuteWithArgs([]string{
+			"plan",
+			"--config-dir", testDir,
+			"--state-file", stateFilePath,
+		})
+
+		// Restore stdout
+		w.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		io.Copy(&buf, r)
+		outputStr := buf.String()
+
 		t.Logf("Tool output:\n%s", outputStr)
 
 		// The tool should now succeed (no longer depends on terraform plan/show)
@@ -179,11 +226,6 @@ func TestIntegration_Apply(t *testing.T) {
 	projectRoot, err := filepath.Abs("..")
 	if err != nil {
 		t.Fatalf("Failed to get project root: %v", err)
-	}
-
-	binaryPath := filepath.Join(projectRoot, "terraform-state-downgrade")
-	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
-		t.Skip("Binary not found. Run 'go build' first")
 	}
 
 	testDir := filepath.Join(projectRoot, "tests", "random_provider")
@@ -291,12 +333,27 @@ func TestIntegration_Apply(t *testing.T) {
 	// Step 4: Run apply command to fix the state
 	t.Run("apply_fixes_state", func(t *testing.T) {
 		stateFilePath := filepath.Join(testDir, "terraform.tfstate")
-		cmd := exec.Command(binaryPath, "apply",
-			"--config-dir", testDir,
-			"--state-file", stateFilePath)
-		output, err := cmd.CombinedOutput()
 
-		outputStr := string(output)
+		// Capture stdout
+		oldStdout := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		// Run apply command
+		err := cmd.ExecuteWithArgs([]string{
+			"apply",
+			"--config-dir", testDir,
+			"--state-file", stateFilePath,
+		})
+
+		// Restore stdout
+		w.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		io.Copy(&buf, r)
+		outputStr := buf.String()
+
 		t.Logf("Tool output:\n%s", outputStr)
 
 		if err != nil {
@@ -307,7 +364,7 @@ func TestIntegration_Apply(t *testing.T) {
 		t.Logf("✓ Apply command completed successfully")
 	})
 
-	// Step 6: Verify backup file was created
+	// Step 5: Verify backup file was created
 	t.Run("backup_file_created", func(t *testing.T) {
 		backupFiles, err := filepath.Glob(filepath.Join(testDir, "terraform.tfstate.backup-*"))
 		if err != nil {
@@ -321,26 +378,46 @@ func TestIntegration_Apply(t *testing.T) {
 		}
 	})
 
-	// Step 5: Verify state schema versions are corrected
+	// Step 6: Verify state schema versions are corrected using strict checking
 	t.Run("verify_schema_versions_corrected", func(t *testing.T) {
 		stateFile := filepath.Join(testDir, "terraform.tfstate")
+
+		// Parse state to check each resource type
 		data, err := os.ReadFile(stateFile)
 		if err != nil {
-			t.Fatalf("Failed to read state: %v", err)
+			t.Fatalf("Failed to read state file: %v", err)
 		}
 
-		stateContent := string(data)
-
-		// After downgrade, random provider v3.1.0 should have schema_version 0 for both resources
-		if !strings.Contains(stateContent, `"schema_version": 0`) {
-			t.Errorf("Expected resources to have schema_version 0 after downgrade")
+		var stateData state.State
+		if err := json.Unmarshal(data, &stateData); err != nil {
+			t.Fatalf("Failed to parse state JSON: %v", err)
 		}
 
-		// Should NOT contain old schema versions
-		if strings.Contains(stateContent, `"schema_version": 2`) || strings.Contains(stateContent, `"schema_version": 3`) {
-			t.Errorf("State still contains old schema versions (2 or 3)")
+		// Verify each resource has the correct target schema version for provider v3.1.0
+		for _, resource := range stateData.Resources {
+			if resource.Mode != "managed" {
+				continue
+			}
+
+			for i, instance := range resource.Instances {
+				var expectedVersion int
+				switch resource.Type {
+				case "random_string":
+					expectedVersion = 1 // v3.1.0 target
+				case "random_password":
+					expectedVersion = 0 // v3.1.0 target
+				default:
+					t.Errorf("Unexpected resource type: %s", resource.Type)
+					continue
+				}
+
+				if instance.SchemaVersion != expectedVersion {
+					t.Errorf("Resource %s.%s[%d] has schema_version %d, expected %d",
+						resource.Type, resource.Name, i, instance.SchemaVersion, expectedVersion)
+				}
+			}
 		}
 
-		t.Logf("✓ State schema versions corrected to v0")
+		t.Logf("✓ All resources have correct schema versions")
 	})
 }
