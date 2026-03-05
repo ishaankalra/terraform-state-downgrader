@@ -32,12 +32,12 @@ jobs:
 
       - name: Build binaries
         run: |
-          # Build for multiple platforms
-          GOOS=linux GOARCH=amd64 go build -o terraform-state-downgrader-linux-amd64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
-          GOOS=linux GOARCH=arm64 go build -o terraform-state-downgrader-linux-arm64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
-          GOOS=darwin GOARCH=amd64 go build -o terraform-state-downgrader-darwin-amd64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
-          GOOS=darwin GOARCH=arm64 go build -o terraform-state-downgrader-darwin-arm64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
-          GOOS=windows GOARCH=amd64 go build -o terraform-state-downgrader-windows-amd64.exe -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}'" .
+          # Build static binaries (no GLIBC dependency) for multiple platforms
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o terraform-state-downgrader-linux-amd64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}' -s -w" .
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o terraform-state-downgrader-linux-arm64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}' -s -w" .
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o terraform-state-downgrader-darwin-amd64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}' -s -w" .
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o terraform-state-downgrader-darwin-arm64 -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}' -s -w" .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o terraform-state-downgrader-windows-amd64.exe -ldflags="-X 'main.Version=${{ steps.tag_version.outputs.new_tag }}' -s -w" .
 
           # Create checksums
           sha256sum terraform-state-downgrader-* > checksums.txt
