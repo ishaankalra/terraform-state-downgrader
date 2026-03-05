@@ -41,6 +41,7 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+import.tf.json
 
 # Test fixtures - exclude generated terraform files
 tests/random_provider/.terraform/

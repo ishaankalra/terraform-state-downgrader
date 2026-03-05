@@ -4,9 +4,11 @@
 package provider
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
-	"time"
+	"path/filepath"
 
 	"github.com/ishaankalra/terraform-state-downgrade/internal/analysis"
 	"github.com/ishaankalra/terraform-state-downgrade/internal/state"
@@ -31,100 +33,83 @@ func ReimportResources(
 	}
 	fmt.Println()
 
-	// Process each mismatch
-	fmt.Printf("Re-importing resources (%d total):\n", len(mismatches))
-
+	// Phase 1: Remove all mismatched resources from state
+	fmt.Printf("Removing resources from state (%d total):\n", len(mismatches))
 	for idx, mismatch := range mismatches {
-		start := time.Now()
-
-		// Re-import the resource using terraform import
-		// This is simpler than loading providers directly via gRPC
-		err := reimportResource(configDir, stateData, mismatch, schemaVersions)
-
-		elapsed := time.Since(start).Seconds()
-
-		if err != nil {
-			fmt.Printf("  [%d/%d] ✗ %s (%.1fs) - %v\n",
-				idx+1, len(mismatches), mismatch.ResourceAddress, elapsed, err)
-			return fmt.Errorf("failed to re-import %s: %w", mismatch.ResourceAddress, err)
+		if err := removeFromState(configDir, mismatch.ResourceAddress); err != nil {
+			fmt.Printf("  [%d/%d] ✗ %s - %v\n", idx+1, len(mismatches), mismatch.ResourceAddress, err)
+			return fmt.Errorf("failed to remove %s from state: %w", mismatch.ResourceAddress, err)
 		}
-
-		fmt.Printf("  [%d/%d] ✓ %s (%.1fs)\n",
-			idx+1, len(mismatches), mismatch.ResourceAddress, elapsed)
+		fmt.Printf("  [%d/%d] ✓ %s removed\n", idx+1, len(mismatches), mismatch.ResourceAddress)
 	}
+	fmt.Println()
 
-	return nil
-}
-
-// reimportResource re-imports a single resource
-func reimportResource(
-	configDir string,
-	stateData *state.State,
-	mismatch analysis.Mismatch,
-	schemaVersions map[string]map[string]int64,
-) error {
-	// Verify resource ID exists
-	if mismatch.ResourceID == "" {
-		return fmt.Errorf("resource ID is empty")
+	// Phase 2: Create import.tf.json with import blocks
+	importFile := filepath.Join(configDir, "import.tf.json")
+	if err := createImportFile(importFile, mismatches); err != nil {
+		return fmt.Errorf("failed to create import.tf.json: %w", err)
 	}
+	defer os.Remove(importFile) // Clean up import file after we're done
 
-	// Build import address
-	importAddr := mismatch.ResourceAddress
+	fmt.Printf("Created %s with %d import blocks\n", importFile, len(mismatches))
+	fmt.Println()
 
-	// Remove from state first
-	rmCmd := exec.Command("terraform", "state", "rm", importAddr)
-	rmCmd.Dir = configDir
-	if err := rmCmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove from state: %w", err)
-	}
-
-	// Import with new schema version
-	importCmd := exec.Command("terraform", "import", importAddr, mismatch.ResourceID)
-	importCmd.Dir = configDir
-
-	// Capture output for debugging
-	output, err := importCmd.CombinedOutput()
+	// Phase 3: Run terraform refresh to import all resources at once
+	fmt.Printf("Running terraform refresh to import resources...\n")
+	refreshCmd := exec.Command("terraform", "refresh")
+	refreshCmd.Dir = configDir
+	output, err := refreshCmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("terraform import failed: %w\nOutput: %s", err, string(output))
+		return fmt.Errorf("terraform refresh failed: %w\nOutput: %s", err, string(output))
 	}
 
-	// Update the state in memory with new schema version and timeouts
-	updateStateWithMismatch(stateData, mismatch, schemaVersions)
-
+	fmt.Printf("✓ Successfully imported %d resources\n", len(mismatches))
 	return nil
 }
 
-// updateStateWithMismatch updates state after re-import to preserve timeouts
-func updateStateWithMismatch(
-	stateData *state.State,
-	mismatch analysis.Mismatch,
-	schemaVersions map[string]map[string]int64,
-) {
-	// Find the resource in state
-	for i := range stateData.Resources {
-		resource := &stateData.Resources[i]
-
-		if resource.Type != mismatch.ResourceType || resource.Name != mismatch.ResourceName {
-			continue
-		}
-
-		// Update the specific instance
-		if mismatch.InstanceIndex < len(resource.Instances) {
-			instance := &resource.Instances[mismatch.InstanceIndex]
-
-			// Update schema version
-			targetVersion := schemaVersions[mismatch.ProviderAddress][mismatch.ResourceType]
-			instance.SchemaVersion = int(targetVersion)
-
-			// Merge timeouts back if they existed
-			if len(mismatch.Timeouts) > 0 {
-				if instance.Attributes == nil {
-					instance.Attributes = make(map[string]interface{})
-				}
-				instance.Attributes["timeouts"] = mismatch.Timeouts
-			}
-		}
-
-		break
+// removeFromState removes a resource from the Terraform state
+func removeFromState(configDir, resourceAddress string) error {
+	rmCmd := exec.Command("terraform", "state", "rm", resourceAddress)
+	rmCmd.Dir = configDir
+	output, err := rmCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("terraform state rm failed: %w\nOutput: %s", err, string(output))
 	}
+	return nil
+}
+
+// createImportFile creates an import.tf.json file with import blocks for all mismatches
+func createImportFile(filePath string, mismatches []analysis.Mismatch) error {
+	// Build import blocks structure for Terraform JSON
+	importBlocks := make([]map[string]interface{}, 0, len(mismatches))
+
+	for _, mismatch := range mismatches {
+		// Verify resource ID exists
+		if mismatch.ResourceID == "" {
+			return fmt.Errorf("resource %s has empty ID", mismatch.ResourceAddress)
+		}
+
+		importBlock := map[string]interface{}{
+			"to": mismatch.ResourceAddress,
+			"id": mismatch.ResourceID,
+		}
+		importBlocks = append(importBlocks, importBlock)
+	}
+
+	// Wrap in the terraform import structure
+	importConfig := map[string]interface{}{
+		"import": importBlocks,
+	}
+
+	// Write to import.tf.json
+	data, err := json.MarshalIndent(importConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal import config: %w", err)
+	}
+
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write import file: %w", err)
+	}
+
+	return nil
 }
