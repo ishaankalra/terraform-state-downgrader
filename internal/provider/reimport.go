@@ -58,12 +58,15 @@ func ReimportResources(
 	fmt.Printf("Running terraform refresh to import resources...\n")
 	refreshCmd := exec.Command("terraform", "refresh")
 	refreshCmd.Dir = configDir
-	output, err := refreshCmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("terraform refresh failed: %w\nOutput: %s", err, string(output))
+	// Stream output in real-time
+	refreshCmd.Stdout = os.Stdout
+	refreshCmd.Stderr = os.Stderr
+
+	if err := refreshCmd.Run(); err != nil {
+		return fmt.Errorf("terraform refresh failed: %w", err)
 	}
 
-	fmt.Printf("✓ Successfully imported %d resources\n", len(mismatches))
+	fmt.Printf("\n✓ Successfully imported %d resources\n", len(mismatches))
 	return nil
 }
 
