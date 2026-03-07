@@ -25,43 +25,62 @@ func DetectMismatches(
 			continue
 		}
 
-		// Build resource address including module path
-		var resourceAddr string
-		if resource.Module != "" {
-			// Module resource: "module.database.aws_s3_bucket.example"
-			resourceAddr = fmt.Sprintf("%s.%s.%s", resource.Module, resource.Type, resource.Name)
-		} else {
-			// Root resource: "aws_s3_bucket.example"
-			resourceAddr = fmt.Sprintf("%s.%s", resource.Type, resource.Name)
-		}
-
-		// Get provider from configuration mapping
-		providerAddr, ok := resourceMapping[resourceAddr]
-		if !ok {
-			// Resource not found in configuration - might have been removed
-			// Skip it for now
-			continue
-		}
-
-		// Get target schema version from provider
-		providerSchemas, ok := schemaVersions[providerAddr]
-		if !ok {
-			// Provider not found in schema output
-			continue
-		}
-
-		targetVersion, ok := providerSchemas[resource.Type]
-		if !ok {
-			// Resource type not found in provider schema
-			continue
-		}
-
 		// Check each instance of the resource
 		for instanceIdx, instance := range resource.Instances {
+			// Build resource address including module path and instance index
+			var instanceAddr string
+			baseAddr := ""
+			if resource.Module != "" {
+				// Module resource: "module.database.aws_s3_bucket.example"
+				baseAddr = fmt.Sprintf("%s.%s.%s", resource.Module, resource.Type, resource.Name)
+			} else {
+				// Root resource: "aws_s3_bucket.example"
+				baseAddr = fmt.Sprintf("%s.%s", resource.Type, resource.Name)
+			}
+
+			instanceAddr = baseAddr
+			if instance.IndexKey != nil {
+				switch key := instance.IndexKey.(type) {
+				case float64:
+					// count: resource.name[0]
+					instanceAddr = fmt.Sprintf("%s[%d]", baseAddr, int(key))
+				case string:
+					// for_each: resource.name["key"]
+					instanceAddr = fmt.Sprintf("%s[\"%s\"]", baseAddr, key)
+				}
+			}
+
+			// Get provider from configuration mapping
+			// Try instance address first, fall back to base address
+			providerAddr, ok := resourceMapping[instanceAddr]
+			if !ok && instance.IndexKey != nil {
+				// For resources with count/for_each, try base address as fallback
+				providerAddr, ok = resourceMapping[baseAddr]
+			}
+			if !ok {
+				// Resource not found in configuration - might have been removed
+				// Skip it for now
+				continue
+			}
+
+			// Get target schema version from provider
+			providerSchemas, ok := schemaVersions[providerAddr]
+			if !ok {
+				// Provider not found in schema output
+				continue
+			}
+
+			targetVersion, ok := providerSchemas[resource.Type]
+			if !ok {
+				// Resource type not found in provider schema
+				continue
+			}
+
 			currentVersion := int64(instance.SchemaVersion)
 
 			// Check if downgrade is needed
 			if currentVersion != targetVersion {
+
 				// Extract resource ID
 				resourceID := ""
 				if id, ok := instance.Attributes["id"]; ok {
@@ -74,7 +93,7 @@ func DetectMismatches(
 				timeouts := extractTimeouts(instance.Attributes)
 
 				mismatch := Mismatch{
-					ResourceAddress: resourceAddr,
+					ResourceAddress: instanceAddr,
 					ResourceType:    resource.Type,
 					ResourceName:    resource.Name,
 					ProviderAddress: providerAddr,

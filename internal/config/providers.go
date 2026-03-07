@@ -13,7 +13,8 @@ import (
 
 // GetResourceProviderMappingFromState builds resource-to-provider mapping
 // by extracting provider information directly from state
-// Resource addresses include module path (e.g., "module.database.aws_s3_bucket.example")
+// Resource addresses include module path and indices for count/for_each
+// (e.g., "module.database.aws_s3_bucket.example[0]")
 func GetResourceProviderMappingFromState(configDir string, stateData *state.State) (map[string]string, error) {
 	// Build resource → provider mapping from state
 	mapping := make(map[string]string)
@@ -24,14 +25,14 @@ func GetResourceProviderMappingFromState(configDir string, stateData *state.Stat
 			continue
 		}
 
-		// Build resource address including module path
-		var resourceAddr string
+		// Build base resource address including module path
+		var baseAddr string
 		if resource.Module != "" {
 			// Module resource: "module.database.aws_s3_bucket.example"
-			resourceAddr = fmt.Sprintf("%s.%s.%s", resource.Module, resource.Type, resource.Name)
+			baseAddr = fmt.Sprintf("%s.%s.%s", resource.Module, resource.Type, resource.Name)
 		} else {
 			// Root resource: "aws_s3_bucket.example"
-			resourceAddr = fmt.Sprintf("%s.%s", resource.Type, resource.Name)
+			baseAddr = fmt.Sprintf("%s.%s", resource.Type, resource.Name)
 		}
 
 		// Extract provider address from state's provider field
@@ -39,8 +40,24 @@ func GetResourceProviderMappingFromState(configDir string, stateData *state.Stat
 		// Output: "registry.terraform.io/hashicorp/random"
 		providerAddr := ExtractProviderAddress(resource.Provider)
 
-		if providerAddr != "" {
-			mapping[resourceAddr] = providerAddr
+		if providerAddr == "" {
+			continue
+		}
+
+		// Map each instance (handles count/for_each)
+		for _, instance := range resource.Instances {
+			instanceAddr := baseAddr
+			if instance.IndexKey != nil {
+				switch key := instance.IndexKey.(type) {
+				case float64:
+					// count: resource.name[0]
+					instanceAddr = fmt.Sprintf("%s[%d]", baseAddr, int(key))
+				case string:
+					// for_each: resource.name["key"]
+					instanceAddr = fmt.Sprintf("%s[\"%s\"]", baseAddr, key)
+				}
+			}
+			mapping[instanceAddr] = providerAddr
 		}
 	}
 

@@ -34,14 +34,19 @@ func ReimportResources(
 	fmt.Println()
 
 	// Phase 1: Remove all mismatched resources from state
-	fmt.Printf("Removing resources from state (%d total):\n", len(mismatches))
+	fmt.Printf("Removing %d resources from state...\n", len(mismatches))
+
+	// Collect all resource addresses
+	resourceAddresses := make([]string, len(mismatches))
 	for idx, mismatch := range mismatches {
-		if err := removeFromState(configDir, mismatch.ResourceAddress); err != nil {
-			fmt.Printf("  [%d/%d] ✗ %s - %v\n", idx+1, len(mismatches), mismatch.ResourceAddress, err)
-			return fmt.Errorf("failed to remove %s from state: %w", mismatch.ResourceAddress, err)
-		}
-		fmt.Printf("  [%d/%d] ✓ %s removed\n", idx+1, len(mismatches), mismatch.ResourceAddress)
+		resourceAddresses[idx] = mismatch.ResourceAddress
 	}
+
+	// Remove all resources in a single command
+	if err := removeFromState(configDir, resourceAddresses...); err != nil {
+		return fmt.Errorf("failed to remove resources from state: %w", err)
+	}
+	fmt.Printf("✓ Removed %d resources from state\n", len(mismatches))
 	fmt.Println()
 
 	// Phase 2: Create import.tf.json with import blocks
@@ -70,9 +75,15 @@ func ReimportResources(
 	return nil
 }
 
-// removeFromState removes a resource from the Terraform state
-func removeFromState(configDir, resourceAddress string) error {
-	rmCmd := exec.Command("terraform", "state", "rm", resourceAddress)
+// removeFromState removes multiple resources from the Terraform state in a single command
+func removeFromState(configDir string, resourceAddresses ...string) error {
+	if len(resourceAddresses) == 0 {
+		return nil
+	}
+
+	// Build command: terraform state rm <addr1> <addr2> <addr3> ...
+	args := append([]string{"state", "rm"}, resourceAddresses...)
+	rmCmd := exec.Command("terraform", args...)
 	rmCmd.Dir = configDir
 	output, err := rmCmd.CombinedOutput()
 	if err != nil {

@@ -11,3 +11,10 @@ resource "random_password" "db_password" {
   length  = 16
   special = true
 }
+
+# Random string with count - schema_version = 2 in v3.5.1
+resource "random_string" "with_count" {
+  count   = 3
+  length  = 8
+  special = false
+}

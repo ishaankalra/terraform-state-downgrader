@@ -250,6 +250,11 @@ func TestDetectMismatches_ResourceWithCount(t *testing.T) {
 	if mismatch.ResourceID != "i-001" {
 		t.Errorf("Expected resource ID i-001, got %s", mismatch.ResourceID)
 	}
+
+	// Verify address includes count index
+	if mismatch.ResourceAddress != "aws_instance.web[1]" {
+		t.Errorf("Expected resource address aws_instance.web[1], got %s", mismatch.ResourceAddress)
+	}
 }
 
 func TestDetectMismatches_WithTimeouts(t *testing.T) {
@@ -520,5 +525,75 @@ func TestDetectMismatches_MultipleProviders(t *testing.T) {
 
 	if !foundAWS || !foundRandom {
 		t.Error("Expected mismatches from both AWS and Random providers")
+	}
+}
+
+func TestDetectMismatches_ResourceWithForEach(t *testing.T) {
+	// Mock state with resource using for_each
+	stateData := &state.State{
+		Resources: []state.Resource{
+			{
+				Mode: "managed",
+				Type: "aws_s3_bucket",
+				Name: "example",
+				Instances: []state.ResourceInstance{
+					{
+						SchemaVersion: 2,
+						IndexKey:      "prod", // for_each key
+						Attributes: map[string]interface{}{
+							"id": "prod-bucket",
+						},
+					},
+					{
+						SchemaVersion: 2,
+						IndexKey:      "staging", // for_each key
+						Attributes: map[string]interface{}{
+							"id": "staging-bucket",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resourceMapping := map[string]string{
+		`aws_s3_bucket.example["prod"]`:    "registry.terraform.io/hashicorp/aws",
+		`aws_s3_bucket.example["staging"]`: "registry.terraform.io/hashicorp/aws",
+	}
+
+	schemaVersions := map[string]map[string]int64{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_s3_bucket": 0,
+		},
+	}
+
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	if err != nil {
+		t.Fatalf("DetectMismatches failed: %v", err)
+	}
+
+	// Should detect 2 mismatches (one per instance)
+	if len(mismatches) != 2 {
+		t.Fatalf("Expected 2 mismatches, got %d", len(mismatches))
+	}
+
+	// Verify addresses include for_each keys
+	expectedAddresses := map[string]bool{
+		`aws_s3_bucket.example["prod"]`:    false,
+		`aws_s3_bucket.example["staging"]`: false,
+	}
+
+	for _, m := range mismatches {
+		if _, exists := expectedAddresses[m.ResourceAddress]; exists {
+			expectedAddresses[m.ResourceAddress] = true
+		} else {
+			t.Errorf("Unexpected resource address: %s", m.ResourceAddress)
+		}
+	}
+
+	for addr, found := range expectedAddresses {
+		if !found {
+			t.Errorf("Missing expected resource address: %s", addr)
+		}
 	}
 }
