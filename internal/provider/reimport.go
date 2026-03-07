@@ -60,8 +60,16 @@ func ReimportResources(
 	fmt.Println()
 
 	// Phase 3: Run terraform refresh to import all resources at once
+	// Use -target flags to refresh only the specific resources that need to be imported
 	fmt.Printf("Running terraform refresh to import resources...\n")
-	refreshCmd := exec.Command("terraform", "refresh")
+
+	// Build refresh command with target flags for each resource
+	args := []string{"refresh"}
+	for _, mismatch := range mismatches {
+		args = append(args, "-target="+mismatch.ResourceAddress)
+	}
+
+	refreshCmd := exec.Command("terraform", args...)
 	refreshCmd.Dir = configDir
 	// Stream output in real-time
 	refreshCmd.Stdout = os.Stdout
