@@ -10,6 +10,7 @@ import (
 
 	"github.com/ishaankalra/terraform-state-downgrader/internal/analysis"
 	"github.com/ishaankalra/terraform-state-downgrader/internal/config"
+	"github.com/ishaankalra/terraform-state-downgrader/internal/output"
 	"github.com/ishaankalra/terraform-state-downgrader/internal/provider"
 	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 	"github.com/spf13/cobra"
@@ -61,6 +62,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 5: Detect mismatches (version mismatches + schema validation issues)
+	fmt.Println("Analyzing resources...")
 	mismatches, err := analysis.DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		return fmt.Errorf("failed to detect mismatches: %w", err)
@@ -71,7 +73,11 @@ func runApply(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Step 6: Create backup from pulled state
+	// Step 6: Display plan
+	fmt.Println()
+	output.DisplayPlan(lockFile, stateData, mismatches)
+
+	// Step 7: Create backup from pulled state
 	backupPath := backupFile
 	if backupPath == "" {
 		backupPath = filepath.Join(configDir, fmt.Sprintf("terraform.tfstate.backup-%d", time.Now().Unix()))
@@ -81,13 +87,13 @@ func runApply(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
 
-	// Step 7: Load providers and re-import resources
+	// Step 8: Load providers and re-import resources
 	fmt.Println("\nLoading providers...")
 	if err := provider.ReimportResources(configDir, stateData, mismatches, schemaVersions); err != nil {
 		return fmt.Errorf("failed to re-import resources: %w", err)
 	}
 
-	// Step 8: Summary
+	// Step 9: Summary
 	elapsed := time.Since(startTime)
 	fmt.Printf("\n✓ Success! %d resources downgraded\n", len(mismatches))
 	fmt.Printf("  Backup: %s\n", backupPath)
