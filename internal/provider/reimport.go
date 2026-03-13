@@ -33,35 +33,59 @@ func ReimportResources(
 	}
 	fmt.Println()
 
-	// Phase 1: Remove all mismatched resources from state
-	fmt.Printf("Removing %d resources from state...\n", len(mismatches))
+	// Separate mismatches into two categories:
+	// 1. Version mismatches - need state rm + import
+	// 2. Schema issues only - just need refresh
+	var versionMismatches []analysis.Mismatch
+	var schemaOnlyIssues []analysis.Mismatch
 
-	// Collect all resource addresses
-	resourceAddresses := make([]string, len(mismatches))
-	for idx, mismatch := range mismatches {
-		resourceAddresses[idx] = mismatch.ResourceAddress
+	for _, mismatch := range mismatches {
+		if mismatch.HasVersionMismatch {
+			versionMismatches = append(versionMismatches, mismatch)
+		} else if mismatch.HasSchemaIssues {
+			schemaOnlyIssues = append(schemaOnlyIssues, mismatch)
+		}
 	}
 
-	// Remove all resources in a single command
-	if err := removeFromState(configDir, resourceAddresses...); err != nil {
-		return fmt.Errorf("failed to remove resources from state: %w", err)
-	}
-	fmt.Printf("✓ Removed %d resources from state\n", len(mismatches))
+	fmt.Printf("Resources with version mismatches: %d (will remove and re-import)\n", len(versionMismatches))
+	fmt.Printf("Resources with schema issues only: %d (will refresh in-place)\n", len(schemaOnlyIssues))
 	fmt.Println()
 
-	// Phase 2: Create import.tf.json with import blocks
-	importFile := filepath.Join(configDir, "import.tf.json")
-	if err := createImportFile(importFile, mismatches); err != nil {
-		return fmt.Errorf("failed to create import.tf.json: %w", err)
+	// Phase 1: Remove only version-mismatched resources from state
+	if len(versionMismatches) > 0 {
+		fmt.Printf("Removing %d resources with version mismatches from state...\n", len(versionMismatches))
+
+		// Collect addresses of version-mismatched resources
+		resourceAddresses := make([]string, len(versionMismatches))
+		for idx, mismatch := range versionMismatches {
+			resourceAddresses[idx] = mismatch.ResourceAddress
+		}
+
+		// Remove version-mismatched resources in a single command
+		if err := removeFromState(configDir, resourceAddresses...); err != nil {
+			return fmt.Errorf("failed to remove resources from state: %w", err)
+		}
+		fmt.Printf("✓ Removed %d resources from state\n", len(versionMismatches))
+		fmt.Println()
 	}
-	defer os.Remove(importFile) // Clean up import file after we're done
 
-	fmt.Printf("Created %s with %d import blocks\n", importFile, len(mismatches))
-	fmt.Println()
+	// Phase 2: Create import.tf.json with import blocks (only for version mismatches)
+	var importFile string
+	if len(versionMismatches) > 0 {
+		importFile = filepath.Join(configDir, "import.tf.json")
+		if err := createImportFile(importFile, versionMismatches); err != nil {
+			return fmt.Errorf("failed to create import.tf.json: %w", err)
+		}
+		defer os.Remove(importFile) // Clean up import file after we're done
 
-	// Phase 3: Run terraform refresh to import all resources at once
-	// Use -target flags to refresh only the specific resources that need to be imported
-	fmt.Printf("Running terraform refresh to import resources...\n")
+		fmt.Printf("Created %s with %d import blocks\n", importFile, len(versionMismatches))
+		fmt.Println()
+	}
+
+	// Phase 3: Run terraform refresh with targeted resources
+	// - Version mismatches: will re-import from cloud provider (removed from state)
+	// - Schema issues only: will refresh in-place (not removed from state)
+	fmt.Printf("Running terraform refresh with %d targeted resources...\n", len(mismatches))
 
 	// Build refresh command with target flags for each resource
 	args := []string{"refresh"}
@@ -79,7 +103,14 @@ func ReimportResources(
 		return fmt.Errorf("terraform refresh failed: %w", err)
 	}
 
-	fmt.Printf("\n✓ Successfully imported %d resources\n", len(mismatches))
+	fmt.Printf("\n✓ Successfully processed %d resources", len(mismatches))
+	if len(versionMismatches) > 0 && len(schemaOnlyIssues) > 0 {
+		fmt.Printf(" (%d re-imported, %d refreshed)\n", len(versionMismatches), len(schemaOnlyIssues))
+	} else if len(versionMismatches) > 0 {
+		fmt.Printf(" (re-imported)\n")
+	} else {
+		fmt.Printf(" (refreshed)\n")
+	}
 	return nil
 }
 
