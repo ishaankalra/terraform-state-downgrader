@@ -3,15 +3,18 @@
 
 package analysis
 
-// Mismatch represents a resource that needs schema version downgrade
+// Mismatch represents a resource that needs schema version downgrade or has schema validation issues
 type Mismatch struct {
-	ResourceAddress string // e.g. "aws_instance.web"
-	ResourceType    string // e.g. "aws_instance"
-	ResourceName    string // e.g. "web"
-	ProviderAddress string // e.g. "registry.terraform.io/hashicorp/aws"
-	StateVersion    int64  // Current schema version in state
-	TargetVersion   int64  // Target schema version from provider
-	ResourceID      string // Resource ID (e.g. "i-1234567")
-	Timeouts        map[string]interface{} // Timeout configuration
-	InstanceIndex   int    // Index in resource instances array
+	ResourceAddress   string   // e.g. "aws_instance.web"
+	ResourceType      string   // e.g. "aws_instance"
+	ResourceName      string   // e.g. "web"
+	ProviderAddress   string   // e.g. "registry.terraform.io/hashicorp/aws"
+	StateVersion      int64    // Current schema version in state
+	TargetVersion     int64    // Target schema version from provider
+	ResourceID        string   // Resource ID (e.g. "i-1234567")
+	Timeouts          map[string]interface{} // Timeout configuration
+	InstanceIndex     int      // Index in resource instances array
+	SchemaIssues      []string // List of schema validation issues found
+	HasVersionMismatch bool    // True if version numbers differ
+	HasSchemaIssues    bool    // True if schema validation found problems
 }

@@ -53,15 +53,15 @@ func runApply(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get resource-provider mapping: %w", err)
 	}
 
-	// Step 4: Get schema versions
+	// Step 4: Get schema versions and full schemas for validation
 	fmt.Println("  ✓ Running: terraform providers schema -json")
-	schemaVersions, err := config.GetSchemaVersions(configDir)
+	schemaVersions, fullSchemas, err := config.GetSchemaVersions(configDir)
 	if err != nil {
 		return fmt.Errorf("failed to get schema versions: %w", err)
 	}
 
-	// Step 5: Detect mismatches
-	mismatches, err := analysis.DetectMismatches(stateData, resourceMapping, schemaVersions)
+	// Step 5: Detect mismatches (version mismatches + schema validation issues)
+	mismatches, err := analysis.DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		return fmt.Errorf("failed to detect mismatches: %w", err)
 	}

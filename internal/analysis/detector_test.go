@@ -6,6 +6,7 @@ package analysis
 import (
 	"testing"
 
+	"github.com/ishaankalra/terraform-state-downgrader/internal/config"
 	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 )
 
@@ -43,7 +44,8 @@ func TestDetectMismatches_DowngradeNeeded(t *testing.T) {
 	}
 
 	// Detect mismatches
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -101,7 +103,8 @@ func TestDetectMismatches_NoMismatch(t *testing.T) {
 		},
 	}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -164,7 +167,8 @@ func TestDetectMismatches_MultipleResources(t *testing.T) {
 		},
 	}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -232,7 +236,8 @@ func TestDetectMismatches_ResourceWithCount(t *testing.T) {
 		},
 	}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -291,7 +296,8 @@ func TestDetectMismatches_WithTimeouts(t *testing.T) {
 		},
 	}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -337,7 +343,8 @@ func TestDetectMismatches_SkipDataSources(t *testing.T) {
 		},
 	}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -374,7 +381,8 @@ func TestDetectMismatches_ResourceNotInConfig(t *testing.T) {
 		},
 	}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -409,7 +417,8 @@ func TestDetectMismatches_ProviderNotFound(t *testing.T) {
 	// Provider not in schema versions
 	schemaVersions := map[string]map[string]int64{}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -448,7 +457,8 @@ func TestDetectMismatches_ResourceTypeNotInSchema(t *testing.T) {
 		},
 	}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -501,7 +511,8 @@ func TestDetectMismatches_MultipleProviders(t *testing.T) {
 		},
 	}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -567,7 +578,8 @@ func TestDetectMismatches_ResourceWithForEach(t *testing.T) {
 		},
 	}
 
-	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions)
+	fullSchemas := make(map[string]map[string]config.SchemaDefinition)
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
 	if err != nil {
 		t.Fatalf("DetectMismatches failed: %v", err)
 	}
@@ -595,5 +607,431 @@ func TestDetectMismatches_ResourceWithForEach(t *testing.T) {
 		if !found {
 			t.Errorf("Missing expected resource address: %s", addr)
 		}
+	}
+}
+
+func TestDetectMismatches_SchemaValidation_MissingAttribute(t *testing.T) {
+	// State has an attribute that doesn't exist in provider schema
+	stateData := &state.State{
+		Resources: []state.Resource{
+			{
+				Mode: "managed",
+				Type: "aws_instance",
+				Name: "web",
+				Instances: []state.ResourceInstance{
+					{
+						SchemaVersion: 0, // Version matches
+						Attributes: map[string]interface{}{
+							"id":               "i-12345",
+							"instance_type":    "t2.micro",
+							"deprecated_field": "old_value", // This field doesn't exist in schema
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resourceMapping := map[string]string{
+		"aws_instance.web": "registry.terraform.io/hashicorp/aws",
+	}
+
+	schemaVersions := map[string]map[string]int64{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_instance": 0,
+		},
+	}
+
+	// Full schema with Block structure
+	fullSchemas := map[string]map[string]config.SchemaDefinition{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_instance": {
+				Version: 0,
+				Block: map[string]interface{}{
+					"attributes": map[string]interface{}{
+						"id": map[string]interface{}{
+							"type":     "string",
+							"computed": true,
+						},
+						"instance_type": map[string]interface{}{
+							"type":     "string",
+							"required": true,
+						},
+						// Note: deprecated_field is NOT in the schema
+					},
+				},
+			},
+		},
+	}
+
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
+	if err != nil {
+		t.Fatalf("DetectMismatches failed: %v", err)
+	}
+
+	// Should detect schema issue (missing attribute in schema)
+	if len(mismatches) != 1 {
+		t.Fatalf("Expected 1 mismatch, got %d", len(mismatches))
+	}
+
+	mismatch := mismatches[0]
+	if !mismatch.HasSchemaIssues {
+		t.Error("Expected HasSchemaIssues to be true")
+	}
+
+	if mismatch.HasVersionMismatch {
+		t.Error("Expected HasVersionMismatch to be false (versions match)")
+	}
+
+	if len(mismatch.SchemaIssues) == 0 {
+		t.Fatal("Expected schema issues to be populated")
+	}
+
+	// Check that the issue mentions the deprecated field
+	foundDeprecatedIssue := false
+	for _, issue := range mismatch.SchemaIssues {
+		if len(issue) > 0 && (issue == "attribute 'deprecated_field' not found in provider schema") {
+			foundDeprecatedIssue = true
+		}
+	}
+
+	if !foundDeprecatedIssue {
+		t.Errorf("Expected to find deprecated_field issue, got: %v", mismatch.SchemaIssues)
+	}
+}
+
+func TestDetectMismatches_SchemaValidation_MissingRequiredAttribute(t *testing.T) {
+	// State is missing a required attribute
+	stateData := &state.State{
+		Resources: []state.Resource{
+			{
+				Mode: "managed",
+				Type: "aws_s3_bucket",
+				Name: "data",
+				Instances: []state.ResourceInstance{
+					{
+						SchemaVersion: 0,
+						Attributes: map[string]interface{}{
+							"id": "my-bucket",
+							// Missing 'bucket' which is required
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resourceMapping := map[string]string{
+		"aws_s3_bucket.data": "registry.terraform.io/hashicorp/aws",
+	}
+
+	schemaVersions := map[string]map[string]int64{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_s3_bucket": 0,
+		},
+	}
+
+	fullSchemas := map[string]map[string]config.SchemaDefinition{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_s3_bucket": {
+				Version: 0,
+				Block: map[string]interface{}{
+					"attributes": map[string]interface{}{
+						"id": map[string]interface{}{
+							"type":     "string",
+							"computed": true,
+						},
+						"bucket": map[string]interface{}{
+							"type":     "string",
+							"required": true, // This is required but missing in state
+						},
+						"region": map[string]interface{}{
+							"type":     "string",
+							"optional": true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
+	if err != nil {
+		t.Fatalf("DetectMismatches failed: %v", err)
+	}
+
+	if len(mismatches) != 1 {
+		t.Fatalf("Expected 1 mismatch, got %d", len(mismatches))
+	}
+
+	mismatch := mismatches[0]
+	if !mismatch.HasSchemaIssues {
+		t.Error("Expected HasSchemaIssues to be true")
+	}
+
+	// Check for required attribute issue
+	foundRequiredIssue := false
+	for _, issue := range mismatch.SchemaIssues {
+		if len(issue) > 0 && (issue == "required attribute 'bucket' missing from state") {
+			foundRequiredIssue = true
+		}
+	}
+
+	if !foundRequiredIssue {
+		t.Errorf("Expected to find missing required 'bucket' issue, got: %v", mismatch.SchemaIssues)
+	}
+}
+
+func TestDetectMismatches_SchemaValidation_TypeMismatch(t *testing.T) {
+	// State has wrong type for an attribute
+	stateData := &state.State{
+		Resources: []state.Resource{
+			{
+				Mode: "managed",
+				Type: "aws_instance",
+				Name: "web",
+				Instances: []state.ResourceInstance{
+					{
+						SchemaVersion: 0,
+						Attributes: map[string]interface{}{
+							"id":            "i-12345",
+							"instance_type": 12345, // Should be string, not number
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resourceMapping := map[string]string{
+		"aws_instance.web": "registry.terraform.io/hashicorp/aws",
+	}
+
+	schemaVersions := map[string]map[string]int64{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_instance": 0,
+		},
+	}
+
+	fullSchemas := map[string]map[string]config.SchemaDefinition{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_instance": {
+				Version: 0,
+				Block: map[string]interface{}{
+					"attributes": map[string]interface{}{
+						"id": map[string]interface{}{
+							"type": "string",
+						},
+						"instance_type": map[string]interface{}{
+							"type":     "string", // Expects string
+							"required": true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
+	if err != nil {
+		t.Fatalf("DetectMismatches failed: %v", err)
+	}
+
+	if len(mismatches) != 1 {
+		t.Fatalf("Expected 1 mismatch, got %d", len(mismatches))
+	}
+
+	mismatch := mismatches[0]
+	if !mismatch.HasSchemaIssues {
+		t.Error("Expected HasSchemaIssues to be true")
+	}
+
+	// Check for type mismatch
+	foundTypeIssue := false
+	for _, issue := range mismatch.SchemaIssues {
+		if len(issue) > 0 && (issue == "attribute 'instance_type' should be string, got int") {
+			foundTypeIssue = true
+		}
+	}
+
+	if !foundTypeIssue {
+		t.Errorf("Expected to find type mismatch issue for instance_type, got: %v", mismatch.SchemaIssues)
+	}
+}
+
+func TestDetectMismatches_SchemaValidation_ValidSchema(t *testing.T) {
+	// State matches schema perfectly - no issues
+	stateData := &state.State{
+		Resources: []state.Resource{
+			{
+				Mode: "managed",
+				Type: "aws_instance",
+				Name: "web",
+				Instances: []state.ResourceInstance{
+					{
+						SchemaVersion: 0,
+						Attributes: map[string]interface{}{
+							"id":            "i-12345",
+							"instance_type": "t2.micro",
+							"ami":           "ami-12345",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resourceMapping := map[string]string{
+		"aws_instance.web": "registry.terraform.io/hashicorp/aws",
+	}
+
+	schemaVersions := map[string]map[string]int64{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_instance": 0,
+		},
+	}
+
+	fullSchemas := map[string]map[string]config.SchemaDefinition{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_instance": {
+				Version: 0,
+				Block: map[string]interface{}{
+					"attributes": map[string]interface{}{
+						"id": map[string]interface{}{
+							"type":     "string",
+							"computed": true,
+						},
+						"instance_type": map[string]interface{}{
+							"type":     "string",
+							"required": true,
+						},
+						"ami": map[string]interface{}{
+							"type":     "string",
+							"required": true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
+	if err != nil {
+		t.Fatalf("DetectMismatches failed: %v", err)
+	}
+
+	// Should have NO mismatches - everything is valid
+	if len(mismatches) != 0 {
+		t.Fatalf("Expected 0 mismatches (all valid), got %d: %v", len(mismatches), mismatches)
+	}
+}
+
+func TestDetectMismatches_SchemaValidation_VersionMismatchAndSchemaIssues(t *testing.T) {
+	// Resource has BOTH version mismatch AND schema issues
+	stateData := &state.State{
+		Resources: []state.Resource{
+			{
+				Mode: "managed",
+				Type: "aws_db_instance",
+				Name: "main",
+				Instances: []state.ResourceInstance{
+					{
+						SchemaVersion: 2, // Wrong version (should be 1)
+						Attributes: map[string]interface{}{
+							"id":               "db-12345",
+							"instance_class":   "db.t2.micro",
+							"deprecated_field": "old_value", // Not in schema
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resourceMapping := map[string]string{
+		"aws_db_instance.main": "registry.terraform.io/hashicorp/aws",
+	}
+
+	schemaVersions := map[string]map[string]int64{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_db_instance": 1, // Target version is 1, state has 2
+		},
+	}
+
+	fullSchemas := map[string]map[string]config.SchemaDefinition{
+		"registry.terraform.io/hashicorp/aws": {
+			"aws_db_instance": {
+				Version: 1,
+				Block: map[string]interface{}{
+					"attributes": map[string]interface{}{
+						"id": map[string]interface{}{
+							"type":     "string",
+							"computed": true,
+						},
+						"instance_class": map[string]interface{}{
+							"type":     "string",
+							"required": true,
+						},
+						"engine": map[string]interface{}{
+							"type":     "string",
+							"required": true, // Missing in state
+						},
+						// deprecated_field is NOT in schema
+					},
+				},
+			},
+		},
+	}
+
+	mismatches, err := DetectMismatches(stateData, resourceMapping, schemaVersions, fullSchemas)
+	if err != nil {
+		t.Fatalf("DetectMismatches failed: %v", err)
+	}
+
+	if len(mismatches) != 1 {
+		t.Fatalf("Expected 1 mismatch, got %d", len(mismatches))
+	}
+
+	mismatch := mismatches[0]
+
+	// Should have BOTH version mismatch AND schema issues
+	if !mismatch.HasVersionMismatch {
+		t.Error("Expected HasVersionMismatch to be true")
+	}
+
+	if !mismatch.HasSchemaIssues {
+		t.Error("Expected HasSchemaIssues to be true")
+	}
+
+	if mismatch.StateVersion != 2 {
+		t.Errorf("Expected state version 2, got %d", mismatch.StateVersion)
+	}
+
+	if mismatch.TargetVersion != 1 {
+		t.Errorf("Expected target version 1, got %d", mismatch.TargetVersion)
+	}
+
+	// Should have at least 2 schema issues
+	if len(mismatch.SchemaIssues) < 2 {
+		t.Errorf("Expected at least 2 schema issues, got %d: %v", len(mismatch.SchemaIssues), mismatch.SchemaIssues)
+	}
+
+	// Verify both issues are detected
+	foundDeprecatedIssue := false
+	foundMissingEngineIssue := false
+	for _, issue := range mismatch.SchemaIssues {
+		if issue == "attribute 'deprecated_field' not found in provider schema" {
+			foundDeprecatedIssue = true
+		}
+		if issue == "required attribute 'engine' missing from state" {
+			foundMissingEngineIssue = true
+		}
+	}
+
+	if !foundDeprecatedIssue {
+		t.Error("Expected to find deprecated_field issue")
+	}
+	if !foundMissingEngineIssue {
+		t.Error("Expected to find missing 'engine' issue")
 	}
 }

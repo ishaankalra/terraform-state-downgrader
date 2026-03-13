@@ -6,15 +6,17 @@ package analysis
 import (
 	"fmt"
 
+	"github.com/ishaankalra/terraform-state-downgrader/internal/config"
 	"github.com/ishaankalra/terraform-state-downgrader/internal/state"
 )
 
 // DetectMismatches cross-references state, configuration, and schema versions
-// to find resources that need schema version downgrade
+// to find resources that need schema version downgrade or have schema validation issues
 func DetectMismatches(
 	stateData *state.State,
 	resourceMapping map[string]string,
 	schemaVersions map[string]map[string]int64,
+	fullSchemas map[string]map[string]config.SchemaDefinition,
 ) ([]Mismatch, error) {
 	var mismatches []Mismatch
 
@@ -78,9 +80,20 @@ func DetectMismatches(
 
 			currentVersion := int64(instance.SchemaVersion)
 
-			// Check if downgrade is needed
-			if currentVersion != targetVersion {
+			// Check for version mismatch
+			hasVersionMismatch := currentVersion != targetVersion
 
+			// Perform schema validation
+			var schemaIssues []string
+			if providerFullSchemas, ok := fullSchemas[providerAddr]; ok {
+				if resourceSchema, ok := providerFullSchemas[resource.Type]; ok {
+					schemaIssues = ValidateResourceSchema(instance.Attributes, resourceSchema, resource.Type)
+				}
+			}
+			hasSchemaIssues := len(schemaIssues) > 0
+
+			// Create mismatch if there's either a version mismatch OR schema validation issues
+			if hasVersionMismatch || hasSchemaIssues {
 				// Extract resource ID
 				resourceID := ""
 				if id, ok := instance.Attributes["id"]; ok {
@@ -93,15 +106,18 @@ func DetectMismatches(
 				timeouts := extractTimeouts(instance.Attributes)
 
 				mismatch := Mismatch{
-					ResourceAddress: instanceAddr,
-					ResourceType:    resource.Type,
-					ResourceName:    resource.Name,
-					ProviderAddress: providerAddr,
-					StateVersion:    currentVersion,
-					TargetVersion:   targetVersion,
-					ResourceID:      resourceID,
-					Timeouts:        timeouts,
-					InstanceIndex:   instanceIdx,
+					ResourceAddress:    instanceAddr,
+					ResourceType:       resource.Type,
+					ResourceName:       resource.Name,
+					ProviderAddress:    providerAddr,
+					StateVersion:       currentVersion,
+					TargetVersion:      targetVersion,
+					ResourceID:         resourceID,
+					Timeouts:           timeouts,
+					InstanceIndex:      instanceIdx,
+					SchemaIssues:       schemaIssues,
+					HasVersionMismatch: hasVersionMismatch,
+					HasSchemaIssues:    hasSchemaIssues,
 				}
 
 				mismatches = append(mismatches, mismatch)

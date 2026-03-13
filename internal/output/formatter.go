@@ -32,12 +32,33 @@ func DisplayPlan(lockFile *config.LockFile, stateData *state.State, mismatches [
 
 	// Display mismatches
 	if len(mismatches) == 0 {
-		fmt.Println("✓ No schema version mismatches found!")
+		fmt.Println("✓ No schema issues found!")
 		fmt.Println("  All resources are in sync with provider schemas.")
 		return
 	}
 
-	fmt.Printf("Schema version mismatches: %d resources\n\n", len(mismatches))
+	// Count different types of issues
+	versionMismatchCount := 0
+	schemaIssueCount := 0
+	for _, m := range mismatches {
+		if m.HasVersionMismatch {
+			versionMismatchCount++
+		}
+		if m.HasSchemaIssues {
+			schemaIssueCount++
+		}
+	}
+
+	fmt.Printf("Resources with issues: %d total", len(mismatches))
+	if versionMismatchCount > 0 && schemaIssueCount > 0 {
+		fmt.Printf(" (%d version mismatches, %d schema issues)\n\n", versionMismatchCount, schemaIssueCount)
+	} else if versionMismatchCount > 0 {
+		fmt.Printf(" (%d version mismatches)\n\n", versionMismatchCount)
+	} else if schemaIssueCount > 0 {
+		fmt.Printf(" (%d schema issues)\n\n", schemaIssueCount)
+	} else {
+		fmt.Println()
+	}
 
 	// Group mismatches by provider
 	byProvider := make(map[string][]analysis.Mismatch)
@@ -69,20 +90,46 @@ func DisplayPlan(lockFile *config.LockFile, stateData *state.State, mismatches [
 
 		for _, mismatch := range providerMismatches {
 			fmt.Printf("  • %s\n", mismatch.ResourceAddress)
-			fmt.Printf("    State schema: v%d → Target schema: v%d\n",
-				mismatch.StateVersion, mismatch.TargetVersion)
+
+			// Display version info if there's a version mismatch
+			if mismatch.HasVersionMismatch {
+				fmt.Printf("    State schema: v%d → Target schema: v%d\n",
+					mismatch.StateVersion, mismatch.TargetVersion)
+			} else {
+				fmt.Printf("    State schema: v%d (matches provider)\n", mismatch.StateVersion)
+			}
 
 			if mismatch.ResourceID != "" {
 				fmt.Printf("    Resource ID: %s\n", mismatch.ResourceID)
 			}
 
-			// Display action
-			if mismatch.StateVersion > mismatch.TargetVersion {
-				fmt.Printf("    ⚠️  DOWNGRADE REQUIRED (v%d → v%d)\n",
-					mismatch.StateVersion, mismatch.TargetVersion)
-			} else {
-				fmt.Printf("    ℹ️  UPGRADE AVAILABLE (v%d → v%d)\n",
-					mismatch.StateVersion, mismatch.TargetVersion)
+			// Display action based on issue type
+			if mismatch.HasVersionMismatch && mismatch.HasSchemaIssues {
+				if mismatch.StateVersion > mismatch.TargetVersion {
+					fmt.Printf("    ⚠️  DOWNGRADE REQUIRED (v%d → v%d) + SCHEMA VALIDATION ISSUES\n",
+						mismatch.StateVersion, mismatch.TargetVersion)
+				} else {
+					fmt.Printf("    ⚠️  UPGRADE AVAILABLE (v%d → v%d) + SCHEMA VALIDATION ISSUES\n",
+						mismatch.StateVersion, mismatch.TargetVersion)
+				}
+			} else if mismatch.HasVersionMismatch {
+				if mismatch.StateVersion > mismatch.TargetVersion {
+					fmt.Printf("    ⚠️  DOWNGRADE REQUIRED (v%d → v%d)\n",
+						mismatch.StateVersion, mismatch.TargetVersion)
+				} else {
+					fmt.Printf("    ℹ️  UPGRADE AVAILABLE (v%d → v%d)\n",
+						mismatch.StateVersion, mismatch.TargetVersion)
+				}
+			} else if mismatch.HasSchemaIssues {
+				fmt.Printf("    ⚠️  SCHEMA VALIDATION ISSUES DETECTED\n")
+			}
+
+			// Display schema issues if present
+			if mismatch.HasSchemaIssues {
+				fmt.Printf("    Schema validation issues:\n")
+				for _, issue := range mismatch.SchemaIssues {
+					fmt.Printf("      - %s\n", issue)
+				}
 			}
 
 			fmt.Println("    Action: Re-import from cloud provider")
