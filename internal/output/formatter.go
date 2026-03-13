@@ -132,7 +132,12 @@ func DisplayPlan(lockFile *config.LockFile, stateData *state.State, mismatches [
 				}
 			}
 
-			fmt.Println("    Action: Re-import from cloud provider")
+			// Display action based on issue type
+			if mismatch.HasVersionMismatch {
+				fmt.Println("    Action: Remove from state and re-import from cloud provider")
+			} else {
+				fmt.Println("    Action: Refresh from cloud provider (in-place)")
+			}
 
 			// Display timeouts if present
 			if len(mismatch.Timeouts) > 0 {
